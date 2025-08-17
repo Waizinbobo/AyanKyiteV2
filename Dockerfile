@@ -17,7 +17,7 @@ RUN a2enmod rewrite
 # Set working directory
 WORKDIR /var/www/html
 
-# Copy project files
+# Copy Laravel backend files
 COPY . .
 
 # Install PHP dependencies (without scripts to avoid artisan not found)
