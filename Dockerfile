@@ -3,23 +3,24 @@
 # ---------------------------
 FROM php:8.2-apache AS base
 
+ENV COMPOSER_ALLOW_SUPERUSER=1
+
 WORKDIR /var/www/html
 
-# Install dependencies
-RUN apt-get update && apt-get install -y unzip git curl libpng-dev \
-    && docker-php-ext-install pdo pdo_mysql gd
+# System & PHP extensions
+RUN apt-get update && apt-get install -y \
+    git curl unzip libpng-dev libzip-dev \
+ && docker-php-ext-install pdo pdo_mysql gd zip \
+ && a2enmod rewrite
 
-# Enable Apache rewrite
-RUN a2enmod rewrite
-
-# Install Composer
+# Install Composer (from official image)
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
-# Copy composer files and install
+# Install PHP deps WITHOUT scripts (avoid artisan during build)
 COPY composer.json composer.lock ./
-RUN composer install --no-dev --optimize-autoloader
+RUN composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader --no-scripts
 
-# Copy Laravel app source
+# Copy the full Laravel app
 COPY . .
 
 # ---------------------------
@@ -29,15 +30,15 @@ FROM node:20 AS node-build
 
 WORKDIR /var/www/html
 
-# Copy Node/Vite files
+# Copy only what's needed for Vite build
 COPY package*.json ./
 COPY vite.config.js ./
-COPY resources/ ./resources
-COPY public/ ./public
+COPY resources ./resources
+COPY public ./public
 
-# Install and build
-RUN npm install
-RUN npm run build   # <-- generates /public/build
+# Reproducible install & build (uses package-lock.json)
+RUN npm ci --no-audit --no-fund
+RUN npm run build   # produces public/build
 
 # ---------------------------
 # Stage 3: Final Image
@@ -46,17 +47,20 @@ FROM php:8.2-apache
 
 WORKDIR /var/www/html
 
-# Enable Apache rewrite
-RUN a2enmod rewrite
+# Apache: point docroot to Laravel's public and allow .htaccess
+RUN a2enmod rewrite \
+ && sed -i 's|DocumentRoot /var/www/html|DocumentRoot /var/www/html/public|g' /etc/apache2/sites-available/000-default.conf \
+ && printf "<Directory /var/www/html/public>\n\tAllowOverride All\n\tRequire all granted\n</Directory>\n" > /etc/apache2/conf-available/laravel.conf \
+ && a2enconf laravel
 
-# Copy app from base stage
+# Bring in the app (with vendor already installed)
 COPY --from=base /var/www/html /var/www/html
 
-# Copy built Vue assets into Laravel's public folder
+# Bring in built Vite assets
 COPY --from=node-build /var/www/html/public/build /var/www/html/public/build
 
-# Set permissions
-RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
+# Permissions for cache & logs
+RUN chown -R www-data:www-data storage bootstrap/cache || true
 
 EXPOSE 80
 CMD ["apache2-foreground"]
