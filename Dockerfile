@@ -7,7 +7,7 @@ WORKDIR /var/www/html
 
 # Install dependencies
 RUN apt-get update && apt-get install -y unzip git curl libpng-dev zip libonig-dev \
-    && docker-php-ext-install pdo pdo_mysql gd mbstring
+    && docker-php-ext-install pdo pdo_mysql gd mbstring bcmath
 
 # Enable Apache rewrite
 RUN a2enmod rewrite
@@ -15,9 +15,9 @@ RUN a2enmod rewrite
 # Install Composer
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
-# Copy composer files and install PHP dependencies
+# Copy composer files and install PHP dependencies (skip artisan scripts at build time)
 COPY composer.json composer.lock ./
-RUN composer install --no-dev --optimize-autoloader
+RUN composer install --no-dev --optimize-autoloader --no-scripts
 
 # Copy Laravel source
 COPY . .
@@ -29,13 +29,11 @@ FROM node:20 AS node-build
 
 WORKDIR /var/www/html
 
-# Copy Node/Vite files
 COPY package*.json ./
 COPY vite.config.js ./
 COPY resources/ ./resources
 COPY public/ ./public
 
-# Install and build Vue assets
 RUN npm install
 RUN npm run build   # generates /public/build
 
@@ -46,7 +44,6 @@ FROM php:8.2-apache
 
 WORKDIR /var/www/html
 
-# Enable Apache rewrite
 RUN a2enmod rewrite
 
 # Copy Laravel app
@@ -59,4 +56,6 @@ COPY --from=node-build /var/www/html/public/build /var/www/html/public/build
 RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
 
 EXPOSE 80
-CMD ["apache2-foreground"]
+
+# Run artisan commands only at container startup
+CMD php artisan config:clear && php artisan config:cache && apache2-foreground
