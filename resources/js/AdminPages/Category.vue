@@ -328,8 +328,8 @@ export default {
       if (!imagePath) return '';
       if (imagePath.startsWith('data:')) return imagePath;
       if (imagePath.startsWith('http')) return imagePath;
-      if (imagePath.startsWith('/')) return imagePath; // already absolute (e.g., /storage/...)
-      return '/' + imagePath;
+      if (imagePath.startsWith('/')) return import.meta.env.VITE_APP_URL + imagePath;
+      return import.meta.env.VITE_APP_URL + '/' + imagePath;
     },
 
     closeModal() {

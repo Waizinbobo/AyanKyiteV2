@@ -148,10 +148,10 @@
                       {{ parseFloat(item.price).toLocaleString() }} <small class="text-warning">MMK</small>
                     </p>
                     <div class="btn-box mt-auto">
-                      <button @click="viewDetails(item)" class="btn btn-primary me-2">
+                      <button type="button" @click="viewDetails(item)" class="btn btn-primary me-2">
                         <i class="fas fa-eye"></i> Details
                       </button>
-                      <button @click="addToCart(item)" class="btn btn-warning">
+                      <button type="button" @click="addToCart(item)" class="btn btn-warning">
                         <i class="fas fa-cart-plus"></i> Add to Cart
                       </button>
                     </div>
@@ -221,7 +221,6 @@
     </div>
 
     <!-- Details Modal -->
-    <teleport to="body">
       <div v-if="showDetails" class="modal-overlay" style="position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.45);" @click.self="closeDetails" role="dialog" aria-modal="true">
         <div class="modal-dialog-custom">
           <div class="modal-header-custom">
@@ -321,7 +320,6 @@
           </div>
         </div>
       </div>
-    </teleport>
   </div>
 </template>
 
@@ -396,6 +394,12 @@ export default {
     document.addEventListener('keydown', this.onEscClose);
     // Debug mount
     console.log('MenuPage mounted');
+    // Expose a debug helper to open the modal from console
+    window.__openMenuDetails = (name = null) => {
+      const item = name ? this.menuItems.find(m => m && m.name === name) : this.menuItems[0];
+      if (item) this.viewDetails(item);
+      else console.warn('No menu item found to open modal');
+    };
   },
   beforeUnmount() {
     document.removeEventListener('keydown', this.onEscClose);
@@ -523,6 +527,7 @@ export default {
       this.specialInstructions = '';
       this.modalQuantity = 1;
       this.showDetails = true;
+      try { toast.info('Opening details...'); } catch (e) {}
       this.$nextTick(() => {
         console.log('Modal mounted:', this.showDetails, this.selectedItem && this.selectedItem.name);
       });
